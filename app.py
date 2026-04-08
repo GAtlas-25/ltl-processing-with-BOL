@@ -148,10 +148,13 @@ def merge_dn_into_ltl(df_ltl_grouped, uploaded_dn):
 def to_zip_of_bols(df_bol):
     created_files = []
 
-    progress_bar = st.progress(0)
+    df_bol = df_bol.reset_index(drop=True)
+    progress_bar = st.progress(0.0)
     total_rows = len(df_bol)
 
-    for i, row in df_bol.iterrows():
+    for idx in range(total_rows):
+        row = df_bol.iloc[idx]
+
         dn_raw = row.get("DN", "")
         if pd.notna(dn_raw) and str(dn_raw).strip() != "":
             try:
@@ -209,7 +212,7 @@ def to_zip_of_bols(df_bol):
         fill_template(TEMPLATE_PATH, output_file, replacements)
         created_files.append(output_file)
 
-        progress_bar.progress((i + 1) / total_rows)
+        progress_bar.progress(min((idx + 1) / total_rows, 1.0))
 
     zip_buffer = io.BytesIO()
     with ZipFile(zip_buffer, "w") as zipf:
@@ -391,16 +394,20 @@ if process_button:
             )
 
             # -------------------------------
-            # Align PO types
+            # Align PO types as strings
             # -------------------------------
             df_ltl_with_dn["Purchase order no."] = (
-                pd.to_numeric(df_ltl_with_dn["Purchase order no."], errors="coerce")
-                .astype("Int64")
+                df_ltl_with_dn["Purchase order no."]
+                .astype(str)
+                .str.strip()
+                .str.replace(r"\.0$", "", regex=True)
             )
 
             df_chub["PONumber"] = (
-                pd.to_numeric(df_chub["PONumber"], errors="coerce")
-                .astype("Int64")
+                df_chub["PONumber"]
+                .astype(str)
+                .str.strip()
+                .str.replace(r"\.0$", "", regex=True)
             )
 
             # -------------------------------
