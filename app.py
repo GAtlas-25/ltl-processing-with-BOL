@@ -394,6 +394,13 @@ if process_button:
             )
 
             # -------------------------------
+            # Override for CA shipments - because not present in carrier guide
+            # -------------------------------
+            mask_ca = df_chub["ShipToState"].astype(str).str.strip() == "CA"
+            df_chub.loc[mask_ca, "SCAC"] = "EXLA"
+            df_chub.loc[mask_ca, "Carrier_name"] = "Estes Express Lines"
+
+            # -------------------------------
             # Align PO types as strings
             # -------------------------------
             df_ltl_with_dn["Purchase order no."] = (
