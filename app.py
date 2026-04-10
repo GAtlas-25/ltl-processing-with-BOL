@@ -393,12 +393,27 @@ if process_button:
                 df_chub["ShippingCodeHomeDelivery"]
             )
 
+            map_sap = {
+                "AACT": "43564",
+                "EXLA": "43558",
+                "CTII": "",
+                "ABFS": "55153",
+                "RNLO": ""
+            }
+
+            df_chub["SAP_Carrier_Code"] = np.where(
+                df_chub["HD_Store"].notna(),
+                df_chub["SupplierIBtoDC/StoreCarrier"].map(map_sap),
+                df_chub["ResidentialDeliveryCarrier(Hd.com)"].map(map_sap)
+            )
+
             # -------------------------------
             # Override for CA shipments - because not present in carrier guide
             # -------------------------------
             mask_ca = df_chub["ShipToState"].astype(str).str.strip() == "CA"
             df_chub.loc[mask_ca, "SCAC"] = "EXLA"
             df_chub.loc[mask_ca, "Carrier_name"] = "Estes Express Lines"
+            df_chub.loc[mask_ca, "SAP_Carrier_Code"] = "43558"
 
             # -------------------------------
             # Align PO types as strings
@@ -501,6 +516,7 @@ if st.session_state.df_bol_preview is not None:
             "Purchase order no.",
             "Sales document",
             "DN",
+            "SAP_Carrier_Code",
             "ShipToName",
             "ShipToState",
             "ShipToPostalCode",
