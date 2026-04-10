@@ -396,9 +396,9 @@ if process_button:
             map_sap = {
                 "AACT": "43564",
                 "EXLA": "43558",
-                "CTII": "",
+                "CTII": "48617",
                 "ABFS": "55153",
-                "RNLO": ""
+                "RNLO": "41133"
             }
 
             df_chub["SAP_Carrier_Code"] = np.where(
