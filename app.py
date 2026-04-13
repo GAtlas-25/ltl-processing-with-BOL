@@ -77,6 +77,12 @@ def fill_template(template_path, output_path, replacements):
 # -----------------------------------------------------------
 # HELPERS
 # -----------------------------------------------------------
+def to_excel_bytes(df, sheet_name="Sheet1"):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+    return buffer.getvalue()
+
 def clean_zip(series):
     return (
         series.astype(str)
@@ -242,10 +248,10 @@ if "zip_buffer" not in st.session_state:
 
 if "bol_count" not in st.session_state:
     st.session_state.bol_count = None
-    
+
 if "matched_chub_count" not in st.session_state:
     st.session_state.matched_chub_count = None
-    
+
 if "not_found_in_chub_df" not in st.session_state:
     st.session_state.not_found_in_chub_df = None
 
@@ -453,15 +459,11 @@ if process_button:
                 indicator=True
             )
             matched_chub_count = (df_ltl_chub_check["_merge"] == "both").sum()
-
-            ## memorixe count of pos that match from LTL cleaned and Chub
             st.session_state.matched_chub_count = matched_chub_count
 
             # -------------------------------
             # Build file for rows not found in CHUB
             # -------------------------------
-            df_chub_match_check = df_chub[["PONumber"]].drop_duplicates().copy()
-
             df_ltl_chub_full_check = pd.merge(
                 df_ltl_with_dn.copy(),
                 df_chub_match_check,
@@ -476,7 +478,6 @@ if process_button:
             ].copy()
 
             not_found_in_chub_df = not_found_in_chub_df.drop(columns=["PONumber", "_merge"], errors="ignore")
-
             st.session_state.not_found_in_chub_df = not_found_in_chub_df
 
             # -------------------------------
@@ -532,7 +533,7 @@ if st.session_state.df_ltl_with_dn is not None:
     matched_count = total_rows - missing_count
     excluded_count = len(st.session_state.excluded_no_dn) if st.session_state.excluded_no_dn is not None else 0
     matched_chub_count = st.session_state.matched_chub_count if st.session_state.matched_chub_count is not None else 0
-    
+
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.metric("Rows in LTL file", total_rows)
