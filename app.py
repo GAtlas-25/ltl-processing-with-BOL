@@ -242,6 +242,9 @@ if "zip_buffer" not in st.session_state:
 
 if "bol_count" not in st.session_state:
     st.session_state.bol_count = None
+    
+if "matched_chub_count" not in st.session_state:
+    st.session_state.matched_chub_count = None
 
 # -----------------------------------------------------------
 # HEADER
@@ -321,6 +324,7 @@ if process_button:
             st.session_state.df_bol_preview = None
             st.session_state.zip_buffer = None
             st.session_state.bol_count = None
+            st.session_state.matched_chub_count = None
 
             # -------------------------------
             # Load LTL and merge DN
@@ -433,6 +437,23 @@ if process_button:
             )
 
             # -------------------------------
+            # Count rows from LTL matched to CHUB
+            # -------------------------------
+            df_chub_match_check = df_chub[["PONumber"]].drop_duplicates().copy()
+            df_ltl_chub_check = pd.merge(
+                df_ltl_with_dn[["Purchase order no."]].copy(),
+                df_chub_match_check,
+                left_on="Purchase order no.",
+                right_on="PONumber",
+                how="left",
+                indicator=True
+            )
+            matched_chub_count = (df_ltl_chub_check["_merge"] == "both").sum()
+
+            ## memorixe count of pos that match from LTL cleaned and Chub
+            st.session_state.matched_chub_count = matched_chub_count     
+
+            # -------------------------------
             # Merge BOL data
             # -------------------------------
             df_bol = pd.merge(
@@ -484,15 +505,18 @@ if st.session_state.df_ltl_with_dn is not None:
     missing_count = len(st.session_state.missing_dn_rows) if st.session_state.missing_dn_rows is not None else 0
     matched_count = total_rows - missing_count
     excluded_count = len(st.session_state.excluded_no_dn) if st.session_state.excluded_no_dn is not None else 0
-
-    m1, m2, m3, m4 = st.columns(4)
+    matched_chub_count = st.session_state.matched_chub_count if st.session_state.matched_chub_count is not None else 0
+    
+    m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.metric("Rows in LTL file", total_rows)
     with m2:
         st.metric("Rows matched to DN", matched_count)
     with m3:
-        st.metric("Rows missing DN", missing_count)
+        st.metric("Rows matched to CHUB", matched_chub_count)
     with m4:
+        st.metric("Rows missing DN", missing_count)
+    with m5:
         st.metric("Excluded from BOLs", excluded_count)
 
     if st.session_state.missing_dn_rows is not None and not st.session_state.missing_dn_rows.empty:
