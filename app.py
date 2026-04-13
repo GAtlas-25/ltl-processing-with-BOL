@@ -245,6 +245,9 @@ if "bol_count" not in st.session_state:
     
 if "matched_chub_count" not in st.session_state:
     st.session_state.matched_chub_count = None
+    
+if "not_found_in_chub_df" not in st.session_state:
+    st.session_state.not_found_in_chub_df = None
 
 # -----------------------------------------------------------
 # HEADER
@@ -325,6 +328,7 @@ if process_button:
             st.session_state.zip_buffer = None
             st.session_state.bol_count = None
             st.session_state.matched_chub_count = None
+            st.session_state.not_found_in_chub_df = None
 
             # -------------------------------
             # Load LTL and merge DN
@@ -451,7 +455,29 @@ if process_button:
             matched_chub_count = (df_ltl_chub_check["_merge"] == "both").sum()
 
             ## memorixe count of pos that match from LTL cleaned and Chub
-            st.session_state.matched_chub_count = matched_chub_count     
+            st.session_state.matched_chub_count = matched_chub_count
+
+            # -------------------------------
+            # Build file for rows not found in CHUB
+            # -------------------------------
+            df_chub_match_check = df_chub[["PONumber"]].drop_duplicates().copy()
+
+            df_ltl_chub_full_check = pd.merge(
+                df_ltl_with_dn.copy(),
+                df_chub_match_check,
+                left_on="Purchase order no.",
+                right_on="PONumber",
+                how="left",
+                indicator=True
+            )
+
+            not_found_in_chub_df = df_ltl_chub_full_check[
+                df_ltl_chub_full_check["_merge"] == "left_only"
+            ].copy()
+
+            not_found_in_chub_df = not_found_in_chub_df.drop(columns=["PONumber", "_merge"], errors="ignore")
+
+            st.session_state.not_found_in_chub_df = not_found_in_chub_df
 
             # -------------------------------
             # Merge BOL data
@@ -531,6 +557,25 @@ if st.session_state.excluded_no_dn is not None and not st.session_state.excluded
     st.warning("These rows matched the CommerceHub file but were excluded because DN is missing.")
     st.dataframe(st.session_state.excluded_no_dn, use_container_width=True)
 
+# -------------------------------
+# Rows NOT found in CHUB
+# -------------------------------
+if st.session_state.not_found_in_chub_df is not None and not st.session_state.not_found_in_chub_df.empty:
+    st.markdown("---")
+    st.subheader("Rows not found in CHUB")
+    st.warning("These rows from the LTL cleaned file did not find a match in the CommerceHub CSV.")
+    st.dataframe(st.session_state.not_found_in_chub_df, use_container_width=True)
+    st.download_button(
+        "⬇️ Download rows not found in CHUB",
+        data=to_excel_bytes(
+            st.session_state.not_found_in_chub_df,
+            "Not_Found_In_CHUB"
+        ),
+        file_name="Rows_Not_Found_In_CHUB.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
 if st.session_state.df_bol_preview is not None:
     st.markdown("---")
     st.subheader("BOL data preview")
@@ -550,8 +595,18 @@ if st.session_state.df_bol_preview is not None:
         if col in st.session_state.df_bol_preview.columns
     ]
 
+    preview_df = st.session_state.df_bol_preview[preview_cols].copy()
+
     st.dataframe(
-        st.session_state.df_bol_preview[preview_cols].head(100),
+        preview_df.head(100),
+        use_container_width=True
+    )
+
+    st.download_button(
+        "⬇️ Download BOL preview file",
+        data=to_excel_bytes(preview_df, "BOL_Preview"),
+        file_name="BOL_Preview.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
 
