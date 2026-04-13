@@ -477,6 +477,15 @@ if process_button:
                 df_ltl_chub_full_check["_merge"] == "left_only"
             ].copy()
 
+            # Material as str so it shows correctly on the output
+            not_found_in_chub_df['Material'] = (
+                not_found_in_chub_df['Material']
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.replace(",", "")
+                .str.strip()
+            )
+
             not_found_in_chub_df = not_found_in_chub_df.drop(columns=["PONumber", "_merge"], errors="ignore")
             st.session_state.not_found_in_chub_df = not_found_in_chub_df
 
