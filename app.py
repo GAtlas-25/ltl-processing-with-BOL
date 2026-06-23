@@ -607,6 +607,9 @@ if st.session_state.df_bol_preview is not None:
 
     preview_df = st.session_state.df_bol_preview[preview_cols].copy()
 
+    # make sure DN are ascending for carrier code upload on SAP
+    preview_df = preview_df.sort_values(by='DN', ascending=True)
+
     st.dataframe(
         preview_df.head(100),
         use_container_width=True
