@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
-from zipfile import ZipFile, ZIP_DEFLATED
+from zipfile import ZipFile
 from docx import Document
 import gc
 
@@ -164,7 +164,11 @@ def to_zip_of_bols(df_bol):
 
     zip_buffer = io.BytesIO()
 
-    with ZipFile(zip_buffer, "w", compression=ZIP_DEFLATED) as zipf:
+    # IMPORTANT:
+    # Do not use ZIP_DEFLATED here.
+    # DOCX files are already compressed ZIP files internally.
+    # Re-compressing them wastes CPU/memory and can crash Streamlit Cloud.
+    with ZipFile(zip_buffer, "w") as zipf:
 
         for idx in range(total_rows):
             row = df_bol.iloc[idx]
@@ -226,14 +230,18 @@ def to_zip_of_bols(df_bol):
                 "{{QTY_PACK}}": str(row.get("Order Quantity", ""))
             }
 
-            status_text.write(f"Generating BOL {idx + 1} of {total_rows}")
+            # Update UI only every 5 rows instead of every row.
+            if idx == 0 or idx % 5 == 0 or idx == total_rows - 1:
+                status_text.write(f"Generating BOL {idx + 1} of {total_rows}")
+                progress_bar.progress(min((idx + 1) / total_rows, 1.0))
 
             doc_bytes = fill_template_to_bytes(
                 TEMPLATE_PATH,
                 replacements
             )
 
-            file_name = f"{dn}_{scac}.docx"
+            # Prefix with row number to prevent duplicate filenames inside ZIP.
+            file_name = f"{idx + 1:03d}_{dn}_{scac}.docx"
 
             zipf.writestr(
                 file_name,
@@ -245,14 +253,13 @@ def to_zip_of_bols(df_bol):
             if idx % 10 == 0:
                 gc.collect()
 
-            progress_bar.progress(min((idx + 1) / total_rows, 1.0))
-
     zip_buffer.seek(0)
     zip_bytes = zip_buffer.getvalue()
 
     del zip_buffer
     gc.collect()
 
+    progress_bar.progress(1.0)
     status_text.write(f"Generated {total_rows} BOL documents.")
 
     return zip_bytes, total_rows
