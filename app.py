@@ -76,8 +76,6 @@ def fill_template_to_bytes(template_path, replacements):
 
     del doc
     del buffer
-    gc.collect()
-
     return doc_bytes
 
 # -----------------------------------------------------------
@@ -230,7 +228,7 @@ def to_zip_of_bols(df_bol):
 
             status_text.write(f"Generating BOL {idx + 1} of {total_rows}")
 
-            doc_buffer = fill_template_to_bytes(
+            doc_bytes = fill_template_to_bytes(
                 TEMPLATE_PATH,
                 replacements
             )
