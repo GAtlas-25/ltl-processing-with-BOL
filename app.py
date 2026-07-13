@@ -558,6 +558,18 @@ if process_button:
             # Build BOL ZIP
             # -------------------------------
             zip_buffer, bol_count = to_zip_of_bols(df_bol_with_dn)
+            
+            st.write(
+                f"ZIP size: {len(zip_buffer) / 1024 / 1024:.2f} MB"
+            )
+
+            # freeing memory
+            del df_ltl_with_dn
+            del df_csv
+            del df_chub
+            del df_bol
+            gc.collect()
+
             st.session_state.zip_buffer = zip_buffer
             st.session_state.bol_count = bol_count
 
