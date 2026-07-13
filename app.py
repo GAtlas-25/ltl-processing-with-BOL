@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
-import os
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 from docx import Document
+import gc
 
 # -----------------------------------------------------------
 # PAGE CONFIG
@@ -20,9 +20,6 @@ st.set_page_config(
 # -----------------------------------------------------------
 STATE_CARRIER_PATH = "HD_carrier_guide.xlsx"
 TEMPLATE_PATH = "BOL_template.docx"
-OUTPUT_FOLDER = "BOL_created"
-
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # -----------------------------------------------------------
 # LOAD REFERENCE FILE
@@ -57,7 +54,7 @@ def load_state_carrier():
 # -----------------------------------------------------------
 # WORD TEMPLATE FILLING
 # -----------------------------------------------------------
-def fill_template(template_path, output_path, replacements):
+def fill_template_to_bytes(template_path, replacements):
     doc = Document(template_path)
 
     for p in doc.paragraphs:
@@ -72,7 +69,16 @@ def fill_template(template_path, output_path, replacements):
                     if key in cell.text:
                         cell.text = cell.text.replace(key, str(val))
 
-    doc.save(output_path)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+
+    doc_bytes = buffer.getvalue()
+
+    del doc
+    del buffer
+    gc.collect()
+
+    return doc_bytes
 
 # -----------------------------------------------------------
 # HELPERS
@@ -152,81 +158,106 @@ def merge_dn_into_ltl(df_ltl_grouped, uploaded_dn):
     return merged_ltl_final, missing_dn_rows
 
 def to_zip_of_bols(df_bol):
-    created_files = []
 
     df_bol = df_bol.reset_index(drop=True)
     progress_bar = st.progress(0.0)
+    status_text = st.empty()
     total_rows = len(df_bol)
 
-    for idx in range(total_rows):
-        row = df_bol.iloc[idx]
-
-        dn_raw = row.get("DN", "")
-        if pd.notna(dn_raw) and str(dn_raw).strip() != "":
-            try:
-                dn = str(int(float(dn_raw)))
-            except Exception:
-                dn = str(dn_raw).strip()
-        else:
-            dn = ""
-
-        dn = dn.strip().replace("/", "_")
-
-        scac = str(row.get("SCAC", "")).strip().replace("/", "_")
-
-        weight_raw = row.get("Gross weight", "")
-        if pd.notna(weight_raw) and str(weight_raw).strip() != "":
-            try:
-                weight = str(int(float(weight_raw)))
-            except Exception:
-                weight = str(weight_raw).strip()
-        else:
-            weight = ""
-
-        pallet_raw = row.get("Pallet_qty", "")
-        if pd.notna(pallet_raw) and str(pallet_raw).strip() != "":
-            try:
-                pallet_qty = str(int(float(pallet_raw)))
-            except Exception:
-                pallet_qty = str(pallet_raw).strip()
-        else:
-            pallet_qty = ""
-
-        hd_store = row.get("HD_Store", "")
-        hd_store_value = row.get("ShipToAddress1", "") if pd.notna(hd_store) and str(hd_store).strip() != "" else ""
-
-        replacements = {
-            "{{CARRIER NAME}}": row.get("Carrier_name", ""),
-            "{{CUSTOMER NAME}}": row.get("ShipToName", ""),
-            "{{HD_STORE}}": hd_store_value,
-            "{{ADRESS}}": row.get("ShipToAddress", ""),
-            "{{CITY}}": row.get("ShipToCity", ""),
-            "{{STATE}}": row.get("ShipToState", ""),
-            "{{ZIP CODE}}": row.get("ShipToPostalCode", ""),
-            "{{PHONE NUMBER}}": row.get("ShipToDayPhone", ""),
-            "{{SCAC}}": scac,
-            "{{PO_NUMBER}}": row.get("PONumber", ""),
-            "{{NUM_PACKAGES}}": str(row.get("Order Quantity", "")),
-            "{{WEIGHT}}": weight,
-            "{{CUSTOMER ORDER}}": row.get("CustomerOrderNumber", ""),
-            "{{DELIVERY NUMBER}}": dn,
-            "{{QTY_1}}": pallet_qty,
-            "{{QTY_PACK}}": str(row.get("Order Quantity", ""))
-        }
-
-        output_file = os.path.join(OUTPUT_FOLDER, f"{dn}_{scac}.docx")
-        fill_template(TEMPLATE_PATH, output_file, replacements)
-        created_files.append(output_file)
-
-        progress_bar.progress(min((idx + 1) / total_rows, 1.0))
-
     zip_buffer = io.BytesIO()
-    with ZipFile(zip_buffer, "w") as zipf:
-        for file in created_files:
-            zipf.write(file, os.path.basename(file))
-    zip_buffer.seek(0)
 
-    return zip_buffer, len(created_files)
+    with ZipFile(zip_buffer, "w", compression=ZIP_DEFLATED) as zipf:
+
+        for idx in range(total_rows):
+            row = df_bol.iloc[idx]
+
+            dn_raw = row.get("DN", "")
+            if pd.notna(dn_raw) and str(dn_raw).strip() != "":
+                try:
+                    dn = str(int(float(dn_raw)))
+                except Exception:
+                    dn = str(dn_raw).strip()
+            else:
+                dn = ""
+
+            dn = dn.strip().replace("/", "_")
+
+            scac = str(row.get("SCAC", "")).strip().replace("/", "_")
+
+            weight_raw = row.get("Gross weight", "")
+            if pd.notna(weight_raw) and str(weight_raw).strip() != "":
+                try:
+                    weight = str(int(float(weight_raw)))
+                except Exception:
+                    weight = str(weight_raw).strip()
+            else:
+                weight = ""
+
+            pallet_raw = row.get("Pallet_qty", "")
+            if pd.notna(pallet_raw) and str(pallet_raw).strip() != "":
+                try:
+                    pallet_qty = str(int(float(pallet_raw)))
+                except Exception:
+                    pallet_qty = str(pallet_raw).strip()
+            else:
+                pallet_qty = ""
+
+            hd_store = row.get("HD_Store", "")
+            hd_store_value = (
+                row.get("ShipToAddress1", "")
+                if pd.notna(hd_store) and str(hd_store).strip() != ""
+                else ""
+            )
+
+            replacements = {
+                "{{CARRIER NAME}}": row.get("Carrier_name", ""),
+                "{{CUSTOMER NAME}}": row.get("ShipToName", ""),
+                "{{HD_STORE}}": hd_store_value,
+                "{{ADRESS}}": row.get("ShipToAddress", ""),
+                "{{CITY}}": row.get("ShipToCity", ""),
+                "{{STATE}}": row.get("ShipToState", ""),
+                "{{ZIP CODE}}": row.get("ShipToPostalCode", ""),
+                "{{PHONE NUMBER}}": row.get("ShipToDayPhone", ""),
+                "{{SCAC}}": scac,
+                "{{PO_NUMBER}}": row.get("PONumber", ""),
+                "{{NUM_PACKAGES}}": str(row.get("Order Quantity", "")),
+                "{{WEIGHT}}": weight,
+                "{{CUSTOMER ORDER}}": row.get("CustomerOrderNumber", ""),
+                "{{DELIVERY NUMBER}}": dn,
+                "{{QTY_1}}": pallet_qty,
+                "{{QTY_PACK}}": str(row.get("Order Quantity", ""))
+            }
+
+            status_text.write(f"Generating BOL {idx + 1} of {total_rows}")
+
+            doc_buffer = fill_template_to_bytes(
+                TEMPLATE_PATH,
+                replacements
+            )
+
+            file_name = f"{dn}_{scac}.docx"
+
+            zipf.writestr(
+                file_name,
+                doc_bytes
+            )
+
+            del doc_bytes
+
+            if idx % 10 == 0:
+                gc.collect()
+
+            progress_bar.progress(min((idx + 1) / total_rows, 1.0))
+
+    zip_buffer.seek(0)
+    zip_bytes = zip_buffer.getvalue()
+
+    del zip_buffer
+    gc.collect()
+
+    status_text.write(f"Generated {total_rows} BOL documents.")
+
+    return zip_bytes, total_rows
 
 # -----------------------------------------------------------
 # SESSION STATE
